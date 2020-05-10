@@ -1,6 +1,6 @@
 # The Pigeonator
 
-An AI driven pigeon scarer.
+An AI driven pigeon scarer using a Raspberry Pi.
 
 ## Background
 We have a pigeon problem. It's not just that these birds are so fat they can barely fly (the incredulity of seeing one take off brings back memories of watching Dumbo as a child or my first trip on a 747). It's not the piles of pigeon cr\*p on the walls and garden furniture. Nor is it the incessant cooing that we hear down our bedroom chimney at 6am in the morning. No, final straw was the pond. 
