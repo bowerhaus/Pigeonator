@@ -18,9 +18,9 @@ A more specific sensor trigger was required.
 
 ## The Rise, Fall and Rise of AI
 
-I did quite a lot of work with neural networks back in the 1980's. In those days, they were limited in effectiveness because the computers that could train them were low powered (IBM PCs - no GPUs) and there was usually a dearth of data available. That, coupled with the fact that business uses were restricted (because the networks could never explain *why* they did someing) meant that my interest gradually waned.
+I did quite a lot of work with neural networks back in the 1980's. In those days, they were limited in effectiveness because the computers that could train them were low powered (IBM PCs - no GPUs) and there was usually a dearth of data available. That, coupled with the fact that business uses were restricted (because the networks could never explain *why* they did something) meant that my interest gradually waned.
 
-Scroll forward to 2019 when my eldest son started a PhD in Machine Learning at the University of Bath. Now, he told me, AI and neural networks are back. It's just that today they are called *Deep Learning*. Also, now there is a ton of data and processing power so they might actually be useful for something (you can see where I'm going with this, I think). They still can't explain the reasoning behind their choices but we'll not let that bother us and ignore it for now.
+Scroll forward to 2019 when my eldest son started a PhD in Machine Learning at the University of Bath. Now, he told me, AI and neural networks are back. It's just that today they are called *Deep Learning*. Also, now there is a ton of data and processing power available everywhere so they might actually be useful for something (you can see where I'm going with this, I think). They still can't explain the reasoning behind their decisionmaking but we'll not let that deter us; after all, if we squirt the neighbours cat rather than a pigeon, we won't lose that much sleep over it.
 
 ## Pigeonator Mk II
 
