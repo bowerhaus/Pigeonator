@@ -150,6 +150,13 @@ class SmartMotionDetector():
             self.stream.truncate()"""
             
         time.sleep(PHOTO_WAIT_PERIOD)
+        
+    def check_cpu_temperature(self):
+        """Check the CPU temperature and wait for cool down if necessary"""
+        while (self.cpu.temperature >= THROTTLE_TEMP):
+            print("Over-temperature throttling (%0.1fC)..." % self.cpu.temperature)
+            time.sleep(THROTTLE_SLEEP)
+            self.cpu = CPUTemperature()
 
     def detect_loop(self):
         gc.collect()    
@@ -179,13 +186,11 @@ class SmartMotionDetector():
                 print("Nothing to report. Temp = %0.1fC" % self.cpu.temperature)
     
             self.stream.seek(0)
-            self.stream.truncate()
-            
-            if (self.cpu.temperature >= THROTTLE_TEMP):
-                print("Temperature throttling at: %0.1fC" % self.cpu.temperature)
-                time.sleep(THROTTLE_SLEEP)
+            self.stream.truncate()         
+            self.check_cpu_temperature()
 
     def run(self):
+        print("Starting Detecton")
         with picamera.PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT), framerate=30) as self.camera:
             try:
                 self.camera.start_preview()
@@ -193,9 +198,9 @@ class SmartMotionDetector():
                     
             finally:
                 self.camera.stop_preview()
-            
-def main():
-
+        print("Ending Detection")
+        
+def get_args():
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
       '--model', help='File path of .tflite file.',
@@ -211,8 +216,10 @@ def main():
       required=False,
       type=float,
       default=DEFAULT_THRESHOLD)
-    args = parser.parse_args()
-    
+    return parser.parse_args()
+            
+def main():
+    args = get_args()
     detector = SmartMotionDetector(args)
     detector.run()
     
