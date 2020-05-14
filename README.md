@@ -3,7 +3,7 @@
 An AI driven pigeon scarer using a Raspberry Pi.
 
 ## Background
-We have a pigeon problem. It's not just that these birds are so fat they can barely fly (the incredulity of seeing one take off brings back memories of watching Dumbo as a child or my first trip on a 747). It's not the piles of pigeon cr\*p on the walls and garden furniture. Nor is it the incessant cooing that we hear down our bedroom chimney at 6am in the morning. No, final straw was the pond. 
+We have a pigeon problem. It's not just that these birds are so fat they can barely fly (the incredulity of seeing one take off brings back memories of watching "Dumbo" as a child or my first trip on a 747). Nor is it the piles of pigeon cr\*p on the walls and garden furniture or the incessant cooing that we hear down our bedroom chimney at 6am in the morning. No, for me, the final straw was the pond. 
 
 A couple of years ago we build a small pond in the garden. It certainly attracts wildlife, which was the aim. There are definitely more (pleasant) insects and birds in the garden now and they are joy to watch. Unfortunately, the previously resident pigeons have taken to performing their daily ablutions in there too. I have no idea why, or where they've been, but every pigeon bath leaves a revolting and most unsightly slick of oil on the surface of the water. I could stand it no longer and something had to be done.
 
