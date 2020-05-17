@@ -24,6 +24,7 @@ from __future__ import print_function
 
 import argparse
 import io
+import os
 import re
 import time
 import gc
@@ -37,15 +38,13 @@ import picamera
 from PIL import Image
 from tflite_runtime.interpreter import Interpreter
 
-CAMERA_WIDTH = 1640
+CAMERA_WIDTH = 1232
 CAMERA_HEIGHT = 1232
 
 THROTTLE_TEMP = 80
 THROTTLE_SLEEP = 5
 
-PHOTO_COUNT = 5
-PHOTO_INTERVAL = 1
-PHOTO_WAIT_PERIOD = 10
+PHOTO_WAIT_PERIOD = 2
 
 DEFAULT_THRESHOLD = 0.5
 
@@ -54,6 +53,7 @@ class SmartMotionDetector():
     def __init__(self, args):
         self.labels = self.load_labels(args.labels)
         self.threshold = args.threshold
+        self.last_signature = None
         self.interpreter = Interpreter(args.model)
         self.interpreter.allocate_tensors()
         _, self.input_height, self.input_width, _ = self.interpreter.get_input_details()[0]['shape']
@@ -131,24 +131,17 @@ class SmartMotionDetector():
     
         class0 = results[0]["class_id"]
         label0 = self.labels[class0]
+        datestr = time.strftime("%Y%m%d")
         timestr = time.strftime("%Y%m%d-%H%M%S")
-        filename = "images/%s-%s.jpg" % (timestr, label0)
+        
+        directory = "images/%s" % datestr
+        if not os.path.isdir(directory):
+            os.mkdir(directory)
+            
+        filename = "%s/%s-%s.jpg" % (directory, timestr, label0)
         print("Saving image as %s" % filename)
         image.save(filename)
-        
-        """Now loop and take photo at intervals"""
-        """for i in range(1, PHOTO_COUNT):
-            time.sleep(PHOTO_INTERVAL)
-            
-            self.stream.seek(0)
-            image2 = Image.open(self.stream).convert('RGB')
-            filename = "images/%s-%s-%d.jpg" % (timestr, label0, i)
-            print("Saving image as %s" % filename)
-            image2.save(filename)
-            
-            self.stream.seek(0)
-            self.stream.truncate()"""
-            
+                  
         time.sleep(PHOTO_WAIT_PERIOD)
         
     def check_cpu_temperature(self):
@@ -157,6 +150,20 @@ class SmartMotionDetector():
             print("Over-temperature throttling (%0.1fC)..." % self.cpu.temperature)
             time.sleep(THROTTLE_SLEEP)
             self.cpu = CPUTemperature()
+            
+    def get_single_signature(self, result):
+        ymin, xmin, ymax, xmax = result['bounding_box']
+        cx = round((xmax+xmin) / 2, 1)
+        cy = round((xmax+xmin) / 2, 1)
+        signature = "%s(%d,%d)" % (self.labels[result['class_id']], cx*10, cy*10)
+        return signature
+            
+    def get_full_signature(self, results):
+        signature = ""
+        for each in results:
+            signature = signature + self.get_single_signature(each) + "/"
+        return signature
+        
 
     def detect_loop(self):
         gc.collect()    
@@ -172,19 +179,26 @@ class SmartMotionDetector():
             results = self.detect_objects(imageForDetect)
             elapsed_ms = (time.monotonic() - start_time) * 1000
     
-            results.sort(key=self.get_score, reverse=True)
+            # Filter results over threshold
+            results = [item for item in results if item["score"] >= self.threshold]
+            
+            # Now compute a "signature" for these significant results. We'll compare this with
+            # the last one to see if there has been motion.
+            self.cpu = CPUTemperature()
+            signature = self.get_full_signature(results)
+            if signature != self.last_signature:
+                # There has been a change
+                print("Motion detected as %s" % signature)
+                self.on_detect(results, image)
+            else:
+                print("Nothing to report. Temp = %0.1fC" % self.cpu.temperature)
+            self.last_signature = signature
 
             self.annotator.clear()
             self.annotate_objects(results)
             self.annotator.text([5, 0], '%.1fms' % (elapsed_ms))
             self.annotator.update()
             
-            self.cpu = CPUTemperature()
-            if len(results)>0:
-                self.on_detect(results, image)
-            else:
-                print("Nothing to report. Temp = %0.1fC" % self.cpu.temperature)
-    
             self.stream.seek(0)
             self.stream.truncate()         
             self.check_cpu_temperature()
