@@ -1,0 +1,24 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Classifier",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/Classifier/Pigeonator.py",
+            "args" : ["-uselobe", "-delay", "2000"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/Classifier"
+        },
+        {
+            "name": "Python: Current File",
+            "type": "python",
+            "request": "launch",
+            "program": "${file}",
+            "console": "integratedTerminal"
+        }
+    ]
+}
