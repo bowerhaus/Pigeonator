@@ -52,7 +52,6 @@ class Classifier():
         img_bytes = in_mem_file.read()
 
         b64data = base64.b64encode(img_bytes).decode('ascii')
-        print(b64data)
         
         payload = "{\"inputs\":{\"Image\":\"%s\"}}" % b64data
         response = requests.request("POST", self.endpoint, data=payload)
