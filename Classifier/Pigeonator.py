@@ -15,25 +15,58 @@ from PIL import ImageFont
 from PIL import Image
 from gpiozero import CPUTemperature
 
-CAMERA_WIDTH = 300
-CAMERA_HEIGHT = 300
+CAMERA_WIDTH = 4056
+CAMERA_HEIGHT = 3040
+
+INPUT_WIDTH = 300
+INPUT_HEIGHT = 300
 
 THROTTLE_TEMP = 80
 THROTTLE_SLEEP = 5
+
+class CameraScanner():
+    def __init__(self, getfromcamera, cols=4, rows=3):
+        self.getfromcamera = getfromcamera
+        self.rows = rows
+        self.cols = cols
+        self.segment = -1
+        self.image = None
+
+    def get_next_image(self):
+        self.segment = (self.segment+1) % (self.rows*self.cols)
+        if (self.segment == 0):
+            self.image = self.getfromcamera()
+            self.image.save("images/im.jpg")
+        return self.segment_crop()
+
+    def segment_crop(self):
+        image_width, image_height = self.image.size
+        segment_width = image_width // self.cols
+        segment_height = image_height // self.rows
+        segment_col = self.segment % self.cols
+        segment_row = self.segment // self.cols
+        left = segment_width*segment_col
+        top = segment_height*segment_row
+        right = left+segment_width-1
+        bottom = top+segment_height-1
+        cropped_image = self.image.crop((left, top, right, bottom))
+        cropped_image.save("images/im{0}.jpg".format(self.segment))
+        return cropped_image
 
 class Pigeonator():
     def __init__(self, args):
         self.show_overlay=args.overlay
         self.display_result=args.display
         self.frame_delay=int(args.delay)
+        self.scanner = CameraScanner(lambda: self.get_camera_image())
         
         if (args.uselobe):
             self.classifier= LobeClassifier.Classifier(args)
         else:        
             self.classifier = TFLiteClassifier.Classifier(args)
             
-        self.input_width = CAMERA_WIDTH
-        self.input_height = CAMERA_HEIGHT
+        self.input_width = INPUT_WIDTH
+        self.input_height = INPUT_HEIGHT
         
         if (self.display_result):
             self.init_display()
@@ -60,7 +93,12 @@ class Pigeonator():
             time.sleep(THROTTLE_SLEEP)
             self.cpu = CPUTemperature()
 
-      
+    def get_camera_image(self):
+        self.stream.seek(0)
+        image = Image.open(self.stream).convert('RGB')
+        self.stream.truncate()   
+        return image
+
     def detect_loop(self):
         """
         Loops taking a photo and submitting it to the Tensorflow engine to classify. The results
@@ -71,51 +109,47 @@ class Pigeonator():
         self.stream = io.BytesIO()
         start_time = time.monotonic()
       
-        for _ in self.camera.capture_continuous(self.stream, format='jpeg', use_video_port=True):
-            self.stream.seek(0)
-            image = Image.open(self.stream).convert('RGB')
+        for _ in self.camera.capture_continuous(self.stream, format='jpeg', resize=None, use_video_port=False):
+            image = self.scanner.get_next_image()
             imageForDetect = image.resize((self.input_width, self.input_height), Image.ANTIALIAS)
                 
-            imageForDetect.save("images/im.jpg")
             self.cpu = CPUTemperature()
             temp = round(self.cpu.temperature,1)
             
             frame_ms = int((time.monotonic() - start_time) * 1000)
             start_time = time.monotonic()
                  
-            prediction = self.classifier.get_prediction(imageForDetect);
+            prediction = self.classifier.get_prediction(imageForDetect)
             #label = prediction["Prediction"]
             #confidence = round(prediction["Confidences"][1],2)
             label = prediction["Prediction"][0]
             confidence=0
             elapsed_ms = int((time.monotonic() - start_time) * 1000)
             
-            print(f"Found {label} @ {confidence} - {temp}C")
+            save_file = f"images/{label}/im{self.scanner.segment}.jpg"
+            print(f"Found {label} @ {confidence} - {save_file} - {temp}C")
+            image.save(save_file)
+
             self.camera.annotate_background = picamera.Color('black')
             self.camera.annotate_text = f"{label}@{confidence}\n{elapsed_ms}ms\n{frame_ms}ms"
             self.camera.annotate_text_size=20
-#             imageForDetect.save(f"images/{label}.jpg")
 
             # imageForDetect.show()
             
             if (self.display_result):
                 self.show_image(label+".png")
-
-            self.stream.seek(0)
-            self.stream.truncate()         
-            self.check_cpu_temperature()
-            
+      
+            self.check_cpu_temperature()          
             time.sleep(self.frame_delay/1000)
 
     def run(self):
         print("Starting Detecton")
-        with picamera.PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT), framerate=30) as self.camera:
+        with picamera.PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT), framerate=15) as self.camera:
             try:
-#                 self.camera.exposure_mode = 'off'
-#                 self.camera.shutter_speed = 40000
+                self.camera.exposure_mode = 'off'
                 if (self.show_overlay):
                     self.camera.start_preview()
-                results, image = self.detect_loop()
+                self.detect_loop()
 
                     
             finally:

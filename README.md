@@ -25,3 +25,7 @@ Scroll forward to 2019 when my eldest son started a PhD in Machine Learning at t
 ## Pigeonator Mk II
 
 So the new plan is to create a pigeon scaring device that is sensitive only to these fat birds and not to other cute wildlife and the vagaries of the weather. Perhaps we can use AI image classification to do this? With the advent of TensorFlow (and other ML toolkits) it seems this should be possible and, what's more, this stuff can even run on a mobile, low powered, computer like a Raspberry Pi. Now we're talking! 
+
+## Pi Setup
+
+For use with the HQ camera, you need to bump the GPU memory in /boot/config.txt to 176Mb (https://www.raspberrypi.org/forums/viewtopic.php?t=278381)
