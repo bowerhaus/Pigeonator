@@ -6,8 +6,8 @@ import base64
 import requests
 
 class Classifier():
-    def __init__(self, args):
-        self.endpoint = args.lobeapi
+    def __init__(self, endpoint):
+        self.endpoint = endpoint
     
     def process_image(self, image, input_shape):
         """

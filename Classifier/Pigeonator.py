@@ -14,15 +14,14 @@ from datetime import datetime
 from PIL import Image
 from PIL import ImageDraw
 from PIL import ImageFont
-from PIL import Image
 from gpiozero import CPUTemperature
+from CameraScanner import CameraScanner
 
 CAMERA_WIDTH = 4056
 CAMERA_HEIGHT = 3040
 
 SEGMENT_COLS = 3
 SEGMENT_ROWS = 2
-SEGMENT_OVERLAP = 1.2
 SEGMENT_SIZE = 1024
 
 INPUT_WIDTH = 300
@@ -31,75 +30,16 @@ INPUT_HEIGHT = 300
 THROTTLE_TEMP = 80
 THROTTLE_SLEEP = 5
 
-class CameraScanner():
-    def __init__(self, getfromcamera, frame_delay_ms, cols=SEGMENT_COLS, rows=SEGMENT_ROWS, save_size=SEGMENT_SIZE):
-        self.getfromcamera = getfromcamera
-        self.rows = rows
-        self.cols = cols
-        self.frame_delay_ms = frame_delay_ms
-        self.is_first_time = True
-        segment_ceilwidth = math.ceil(CAMERA_WIDTH / self.cols)
-        segment_ceilheight = math.ceil(CAMERA_HEIGHT / self.rows)
-        self.segment_size = math.floor(max(segment_ceilheight, segment_ceilwidth) * SEGMENT_OVERLAP)
-        self.segment = -1
-        self.save_size = save_size
-        self.image = None
-
-    def get_next_image(self):
-        self.segment = (self.segment+1) % (self.rows*self.cols)
-        if (self.segment == 0):
-            if (not self.is_first_time):
-                time.sleep(self.frame_delay_ms / 1000)
-            self.is_first_time = False
-            self.image = self.getfromcamera()
-            self.image.save("images/im.jpg")
-        return self.segment_crop()
-
-    def segment_crop(self):
-        image_width, image_height = self.image.size
-        segment_floorwidth = image_width // self.cols
-        segment_floorheight = image_height // self.rows
-        segment_col = self.segment % self.cols
-        segment_row = self.segment // self.cols
-
-        # Compute crop area
-        left = segment_floorwidth*segment_col
-        right = left+self.segment_size-1
-        if (right > image_width):
-            overlap = right-image_width
-            left -= overlap
-            right -= overlap
-        top = segment_floorheight*segment_row
-        bottom = top+self.segment_size-1
-        if (bottom > image_height):
-            overlap = bottom-image_height
-            top -= overlap
-            bottom -= overlap
-
-        # Crop it
-        cropped_image = self.image.crop((left, top, right, bottom))
-        cropped_image = cropped_image.resize((self.save_size, self.save_size), Image.ANTIALIAS)
-        cropped_image.save(f"images/{self.short_filename()}")
-        return cropped_image
-
-    def short_filename(self):
-        return f"im{self.segment}.jpg"
-
-    def long_filename(self):
-        now = datetime.now()
-        date_time = now.strftime("%Y%m%d%H%M%S")
-        return f"im{self.segment}-{date_time}.jpg"
-
 class Pigeonator():
     def __init__(self, args):
         self.show_overlay=args.overlay
         self.display_result=args.display
         self.frame_delay=int(args.delay)
-        self.scanner = CameraScanner(lambda: self.get_camera_image(), self.frame_delay)
+        self.scanner = CameraScanner(lambda: self.get_camera_image(), self.frame_delay, CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.image_count_limit = int(args.count)
         
         if (args.uselobe):
-            self.classifier= LobeClassifier.Classifier(args)
+            self.classifier= LobeClassifier.Classifier(args.lopeapi)
         else:        
             self.classifier = TFLiteClassifier.Classifier(args)
             
@@ -139,11 +79,6 @@ class Pigeonator():
         return image
 
     def detect_loop(self):
-        """
-        Loops taking a photo and submitting it to the Tensorflow engine to classify. The results
-        are filtered to only include objects over a given threshold and to ignore classes that are deemed
-        as unwanted.
-        """
         gc.collect()    
         self.stream = io.BytesIO()
         start_time = time.monotonic()
@@ -172,8 +107,6 @@ class Pigeonator():
             start_time = time.monotonic()
                  
             prediction = self.classifier.get_prediction(imageForDetect)
-            #label = prediction["Prediction"]
-            #confidence = round(prediction["Confidences"][1],2)
             label = prediction["Prediction"][0]
             confidence=0
             elapsed_ms = int((time.monotonic() - start_time) * 1000)
@@ -189,13 +122,7 @@ class Pigeonator():
 
             # Log it
             print(f"Found {label} @ {confidence} - {save_file} - {temp}C")
-
-            # Annotate the camera overlay (if any)
-            # Deprecated because it does not respect the scanner
-            # self.camera.annotate_background = picamera.Color('black')
-            # self.camera.annotate_text = f"{label}@{confidence}\n{elapsed_ms}ms\n{frame_ms}ms"
-            # self.camera.annotate_text_size=20
-            
+      
             # Display an indication of the classification (if requested)
             if (self.display_result):
                 self.show_image(label+".png")
