@@ -9,7 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/Classifier/Pigeonator.py",
-            "args" : ["-uselobe", "-delay", "2000"],
+            "args" : ["-uselobe", "-delay", "2000", "-count", "0"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/Classifier"
         },
