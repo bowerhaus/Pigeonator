@@ -6,6 +6,10 @@ import io
 import time
 import picamera
 import LobeClassifier
+import LinkTap
+import requests
+import base64
+import json
 
 from PIL import Image
 from datetime import datetime
@@ -26,6 +30,14 @@ THROTTLE_TEMP = 70
 THROTTLE_SLEEP = 5
 
 DEFAULT_MODEL = "Pigeonator3"
+
+LINKTAP_GATEWAY = "7A327022004B1200B69"
+LINKTAP_TAPLINKER = "8F2F7022004B1200"
+LINKTAP_USERNAME = "Bowerandy"
+LINKTAP_APIKEY = "ed5f1074c05715e3e65723db9e321cb9"
+
+IMGBB_UPLOAD = "https://api.imgbb.com/1/upload"
+IMGBB_API_KEY = "3b43324bcbc8164bd9be44ded3651664"
 
 # First the window layout in 2 columns
 
@@ -64,6 +76,7 @@ class PigeonatorUI:
         self.stream = io.BytesIO()
         self.scanner = CameraScanner(lambda: self.get_camera_image(), 0, CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.window = sg.Window("Pigeonator UI", layout)
+        self.linktap = LinkTap.LinkTap(LINKTAP_USERNAME, LINKTAP_APIKEY)
 
     def get_camera_image(self):
         self.stream.seek(0)
@@ -139,6 +152,7 @@ class PigeonatorUI:
             os.makedirs(label_dir)
         save_file = f"{label_dir}/{self.scanner.long_filename_for(n)}"
         image.save(save_file)
+        self.imgbb_upload(image, save_file)
 
     def check_cpu_temperature(self):
         """
@@ -149,6 +163,41 @@ class PigeonatorUI:
             print("Over-temperature throttling (%0.1fC)..." % self.cpu.temperature)
             time.sleep(THROTTLE_SLEEP)
             self.cpu = CPUTemperature()
+
+    def image_to_base64(self, image):
+        in_mem_file = io.BytesIO()
+        image.save(in_mem_file, format = "PNG")
+        
+        # reset file pointer to start
+        in_mem_file.seek(0)
+        img_bytes = in_mem_file.read()
+        return base64.b64encode(img_bytes).decode('ascii')
+
+    def fire_sprinkler(self, secs):
+        try:
+            secs = max(secs, 3)
+            self.linktap.activate_instant_mode(LINKTAP_GATEWAY, LINKTAP_TAPLINKER, True, 0, secs, False)
+            print(f"Firing sprinkler for {secs} seconds")
+        except:
+            print("Failed to execute linktap command")
+
+    def imgbb_upload(self, image, description):
+        payload = {
+            "key": IMGBB_API_KEY,
+            "image": self.image_to_base64(image),
+            "name": description,
+            "expiration": 3600*24*7
+        }
+        reply = requests.post(IMGBB_UPLOAD, payload)
+        if reply.reason=="OK":
+            result = json.loads(reply.content)
+            data = result["data"]
+            url = data["url_viewer"]
+            thumb_url = data["thumb"]["url"]
+            image_url = data["url"]
+            return (url, thumb_url, image_url)
+        return None
+
 
     def run(self):
         # Run the Event Loop
@@ -170,6 +219,8 @@ class PigeonatorUI:
                     label, confidence = result
                     if label != None:
                         self.save_classified_image(image, self.scanner.segment, label)
+                    if label == "Pigeon":
+                        self.fire_sprinker(15)
 
             if event == "-EXPOSURE-":
                 self.set_camera_exposure(self.get_exposure())
@@ -185,7 +236,6 @@ class PigeonatorUI:
 
                 # Save in an ALL batch
                 self.save_classified_image(segment_image, i, "All")
-
             self.check_cpu_temperature()
 
         self.window.close()
