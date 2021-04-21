@@ -3,36 +3,53 @@
 import PySimpleGUI as sg
 import os.path
 import io
+import time
 import picamera
 import LobeClassifier
 
 from PIL import Image
 from datetime import datetime
+from gpiozero import CPUTemperature
 from CameraScanner import CameraScanner
 
-CAMERA_WIDTH = 4056
-CAMERA_HEIGHT = 3040
+CAMERA_WIDTH = 3000
+CAMERA_HEIGHT = 2000
 
 SEGMENT_COLS = 3
 SEGMENT_ROWS = 2
-SEGMENT_SIZE = 1024
+SEGMENT_SIZE = 1000
 
 INPUT_WIDTH = 300
 INPUT_HEIGHT = 300
+
+THROTTLE_TEMP = 70
+THROTTLE_SLEEP = 5
+
+DEFAULT_MODEL = "Pigeonator3"
 
 # First the window layout in 2 columns
 
 class PigeonatorUI:
     def __init__(self):
+        self.models = {
+            "Pigeonator2" : "3290603c-b7d1-4532-8834-6713549008de",
+            "Pigeonator3" : "d06b0699-87c3-4831-a62f-99644aebff3d",
+            "Pigeonator4" : "b0ae8b35-7bd5-4fb4-ab65-b20b8c177a9d"
+        }
+        model_names = list(self.models.keys())
 
         frame_image_column = [
             [sg.Image(key="-IMAGE-", size=(660,660), enable_events=True)],
+            [sg.Text("Exposure:"), sg.Combo(key="-EXPOSURE-", size=(15, 1), values=["Auto", "12000", "8000", "4000", "2000", "1500", "1000", "500"], default_value="Auto", readonly=True, enable_events=True)],
             [sg.Image(key="-IMAGE0-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE1-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE2-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE3-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE4-", size=(100,100), enable_events=True),
-            sg.Image(key="-IMAGE5-", size=(100,100), enable_events=True)]
+            sg.Image(key="-IMAGE5-", size=(100,100), enable_events=True)],
+            [sg.Text("Classifier:"), sg.Combo(key="-CLASSIFIER-", size=(15, 1), values=model_names, default_value=DEFAULT_MODEL, readonly=True, enable_events=True),
+            sg.Text("Last Classification:"), sg.Text(key="-CLASSIFICATION-", size=(15, 1)),
+            sg.Checkbox("Auto", key="-AUTO-", size=(15,1), enable_events=True)]
         ]
 
         # ----- Full layout -----
@@ -43,10 +60,10 @@ class PigeonatorUI:
         ]   
 
         self.camera = picamera.PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT), framerate=15)
+        self.camera.iso = 100
         self.stream = io.BytesIO()
         self.scanner = CameraScanner(lambda: self.get_camera_image(), 0, CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.window = sg.Window("Pigeonator UI", layout)
-        self.classifier= LobeClassifier.Classifier("http://192.168.0.82:38100/predict/3290603c-b7d1-4532-8834-6713549008de")
 
     def get_camera_image(self):
         self.stream.seek(0)
@@ -55,46 +72,121 @@ class PigeonatorUI:
         self.stream.truncate()   
         return image
 
+    def get_exposure(self):
+        return self.values["-EXPOSURE-"]
+
+    def get_classifier_name(self):
+        return self.values["-CLASSIFIER-"]
+
+    def get_model(self):
+        return self.models[self.get_classifier_name()]
+
+    def get_auto_mode(self):
+        return self.values["-AUTO-"]
+
+    def classifier(self):
+        return LobeClassifier.Classifier(f"http://192.168.0.82:38100/predict/{self.get_model()}")
+
+    def set_classification(self, text):
+        self.window["-CLASSIFICATION-"].update(text)
+        self.window.refresh()
+
+    def classify_image(self, image):
+        imageForClassify = image.resize((INPUT_WIDTH, INPUT_HEIGHT), Image.ANTIALIAS)
+
+        # Make prediction
+        prediction = self.classifier().get_prediction(imageForClassify)
+        if (prediction == None):
+            self.set_classification("ERROR")
+            return None
+        
+        label = prediction["Prediction"][0]
+
+        # Find confidence of prediction from all labels
+        labels = prediction["Labels"]
+        for eachlabel in labels:
+            if eachlabel[0] == label:
+                confidence = eachlabel[1]
+                self.set_classification(f"{label} @ {confidence}")
+                break
+
+        print(f"Found {label} @ {confidence} - temp={self.cpu.temperature}C")
+        return (label, confidence)
+
+    def set_frame_image(self, image):
+        view = image.resize((660, 440))
+        bio = io.BytesIO()
+        view.save(bio, format="PNG")
+        self.window[f"-IMAGE-"].update(data=bio.getvalue())
+
+    def set_view_image(self, n, image):
+        view = image.resize((100,100))
+        bio = io.BytesIO()
+        view.save(bio, format="PNG")
+        self.window[f"-IMAGE{n}-"].update(data=bio.getvalue())
+
+    def set_camera_exposure(self, exposure):
+        if exposure == "Auto":
+            self.camera.exposure_mode = 'auto'
+        else:
+            self.camera.exposure_mode = 'off'
+            self.camera.shutter_speed = int(exposure)
+        self.scanner.reset()
+
+    def save_classified_image(self, image, n, label):
+        label_dir = f"images/{label}"
+        if (not os.path.isdir(label_dir)):
+            os.makedirs(label_dir)
+        save_file = f"{label_dir}/{self.scanner.long_filename_for(n)}"
+        image.save(save_file)
+
+    def check_cpu_temperature(self):
+        """
+        Check the CPU temperature and wait for cool down if necessary.
+        """
+        self.cpu = CPUTemperature()
+        while (self.cpu.temperature >= THROTTLE_TEMP):
+            print("Over-temperature throttling (%0.1fC)..." % self.cpu.temperature)
+            time.sleep(THROTTLE_SLEEP)
+            self.cpu = CPUTemperature()
+
     def run(self):
         # Run the Event Loop
-
         for _ in self.camera.capture_continuous(self.stream, format='jpeg', resize=None, use_video_port=True):
-            event, values = self.window.read(timeout=100)
+            event, self.values = self.window.read(timeout=500)
             if event == "Exit" or event == sg.WIN_CLOSED:
                 break
 
-            if event == "__TIMEOUT__":  # A file was chosen from the listbox
+            if event == "__TIMEOUT__":  
                 image = self.scanner.get_next_image()
-                if (self.scanner.segment == 0):
-                    frame_image = self.scanner.get_frame_image()
-                    frame_image = frame_image.resize((660, 660))
-                    bio = io.BytesIO()
-                    frame_image.save(bio, format="PNG")
-                    self.window["-IMAGE-"].update(data=bio.getvalue())
+                if self.scanner.segment == 0:
+                    self.set_frame_image(self.scanner.get_frame_image())
+                self.set_view_image(self.scanner.segment, image)
 
-                image = image.resize((100,100))
-                bio = io.BytesIO()
-                image.save(bio, format="PNG")
-                self.window[f"-IMAGE{self.scanner.segment}-"].update(data=bio.getvalue())
+                if self.get_auto_mode():
+                    result = self.classify_image(image)
+                    if result==None:
+                        break
+                    label, confidence = result
+                    if label != None:
+                        self.save_classified_image(image, self.scanner.segment, label)
+
+            if event == "-EXPOSURE-":
+                self.set_camera_exposure(self.get_exposure())
 
             for i in range(0,6):
               if event == f"-IMAGE{i}-":
+                self.set_classification("Working...")
                 segment_image = self.scanner.get_segment_image(i)
-                imageForClassify = image.resize((INPUT_WIDTH, INPUT_HEIGHT), Image.ANTIALIAS)
-                prediction = self.classifier.get_prediction(imageForClassify)
-                label = prediction["Prediction"][0]
-                confidence=0
-                
-                # Save the image out in a batched/classified (possible incorrectly) directory
-                now = datetime.now()
-                batch = now.strftime("%H00H")
-                batch_dir = f"images/{label}/{batch}/{self.scanner.segment}"
-                if (not os.path.isdir(batch_dir)):
-                    os.makedirs(batch_dir)
-                save_file = f"{batch_dir}/{self.scanner.long_filename()}"
-                image.save(save_file)
+                result = self.classify_image(segment_image)
+                if result==None:
+                    break
+                label, confidence = result
 
-                print(f"Found {label} @ {confidence} - {save_file}")
+                # Save in an ALL batch
+                self.save_classified_image(segment_image, i, "All")
+
+            self.check_cpu_temperature()
 
         self.window.close()
 

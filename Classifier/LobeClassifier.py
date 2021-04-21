@@ -54,16 +54,20 @@ class Classifier():
         b64data = base64.b64encode(img_bytes).decode('ascii')
         
         payload = "{\"inputs\":{\"Image\":\"%s\"}}" % b64data
-        response = requests.request("POST", self.endpoint, data=payload)
-        
-        result = json.loads(response.text)
-        outputs = result['outputs']
+        try:
+            response = requests.request("POST", self.endpoint, data=payload)
+            if response.reason == "OK":
+                result = json.loads(response.text)
+                outputs = result['outputs']
+                print(response.text)
+            else:
+                print(response.reason)
+                outputs = None
+            return outputs
+        except:
+            print(f"Could not contact: {self.endpoint}")
+            return None
 
-        print(response.text)
-        
-#         input_data = self.process_image(image, model_inputs.get("Image").get("shape"))
-
-        return outputs
 
 
 

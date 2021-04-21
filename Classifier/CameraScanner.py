@@ -15,7 +15,7 @@ class CameraScanner():
         self.frame_delay_ms = frame_delay_ms
         segment_ceilwidth = math.ceil(self.camera_width / self.segment_cols)
         segment_ceilheight = math.ceil(self.camera_height / self.segment_rows)
-        self.segment_size = math.floor(max(segment_ceilheight, segment_ceilwidth) * SEGMENT_OVERLAP)
+        self.segment_size = math.floor(min(segment_ceilheight, segment_ceilwidth) * SEGMENT_OVERLAP)
         self.segment = -1
         self.segment_size = segment_size
         self.frame_image = None
@@ -31,8 +31,11 @@ class CameraScanner():
         return self.frame_image
     
     def get_segment_image(self, n):
-        image = Image.open(f"images/im{0}.jpg")
+        image = Image.open(f"images/im{n}.jpg")
         return image
+
+    def reset(self):
+        segment = -1
 
     def segment_crop(self):
         image_width, image_height = self.frame_image.size
@@ -61,10 +64,16 @@ class CameraScanner():
         cropped_image.save(f"images/{self.short_filename()}")
         return cropped_image
 
-    def short_filename(self):
-        return f"im{self.segment}.jpg"
+    def short_filename_for(self, n):
+        return f"im{n}.jpg"    
 
-    def long_filename(self):
+    def short_filename(self):
+        return self.short_filename_for(self.segment)
+
+    def long_filename_for(self, n):
         now = datetime.now()
         date_time = now.strftime("%Y%m%d%H%M%S")
-        return f"im{self.segment}-{date_time}.jpg"
+        return f"im{n}-{date_time}.jpg"
+
+    def long_filename(self):
+        return self.long_filename_for(self.segment)
