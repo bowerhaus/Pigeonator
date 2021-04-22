@@ -59,7 +59,7 @@ class Classifier():
             if response.reason == "OK":
                 result = json.loads(response.text)
                 outputs = result['outputs']
-                print(response.text)
+                # print(response.text)
             else:
                 print(response.reason)
                 outputs = None
