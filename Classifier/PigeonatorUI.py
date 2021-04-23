@@ -18,7 +18,7 @@ import seqlog
 
 seqlog.log_to_seq(
    server_url="http://192.168.0.82:5341/",
-   api_key=Secrets.SEQ_API_KLEY,
+   api_key=Secrets.SEQ_API_KEY,
    level=logging.DEBUG,
    batch_size=10,
    auto_flush_timeout=10,  # seconds
