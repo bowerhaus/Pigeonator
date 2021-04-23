@@ -25,24 +25,23 @@ class CameraScanner():
         if (self.segment == 0):
             self.frame_image = self.getfromcamera()
             self.frame_image.save("images/im.jpg")
-        return self.segment_crop()
+        return self.segment_crop(self.segment)
 
     def get_frame_image(self):
         return self.frame_image
     
     def get_segment_image(self, n):
-        image = Image.open(f"images/im{n}.jpg")
-        return image
+        return self.segment_crop(n)
 
     def reset(self):
         segment = -1
 
-    def segment_crop(self):
+    def segment_crop(self, n):
         image_width, image_height = self.frame_image.size
         segment_floorwidth = image_width // self.segment_cols
         segment_floorheight = image_height // self.segment_rows
-        segment_col = self.segment % self.segment_cols
-        segment_row = self.segment // self.segment_cols
+        segment_col = n % self.segment_cols
+        segment_row = n // self.segment_cols
 
         # Compute crop area
         left = segment_floorwidth*segment_col

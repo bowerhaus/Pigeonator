@@ -13,11 +13,17 @@ import json
 import logging
 import logging.config
 import time
-import loggly.handlers
+import seqlog
 
-logging.config.fileConfig('Python.conf')
-logging.Formatter.converter = time.gmtime
-logger = logging.getLogger('Pigeonator')
+seqlog.log_to_seq(
+   server_url="http://192.168.0.82:5341/",
+   api_key="Vfr3hCJoCmaR3ZZOS4kL",
+   level=logging.DEBUG,
+   batch_size=10,
+   auto_flush_timeout=10,  # seconds
+   override_root_logger=True,
+   json_encoder_class=json.encoder.JSONEncoder  # Optional; only specify this if you want to use a custom JSON encoder
+)
 
 from PIL import Image
 from datetime import datetime
@@ -38,6 +44,7 @@ THROTTLE_TEMP = 70
 THROTTLE_SLEEP = 10
 
 DEFAULT_MODEL = "Pigeonator3"
+CONFIDENCE_THRESHOLD = 0.95
 
 LINKTAP_GATEWAY = "7A327022004B1200B69"
 LINKTAP_TAPLINKER = "8F2F7022004B1200"
@@ -60,7 +67,8 @@ class PigeonatorUI:
 
         frame_image_column = [
             [sg.Image(key="-IMAGE-", size=(660,660), enable_events=True)],
-            [sg.Text("Exposure:"), sg.Combo(key="-EXPOSURE-", size=(12, 1), values=["Auto", "12000", "8000", "4000", "2000", "1500", "1000", "500"], default_value="Auto", readonly=True, enable_events=True)],
+            [sg.Text("Exposure:"), sg.Combo(key="-EXPOSURE-", size=(12, 1), values=["Auto", "12000", "8000", "4000", "2000", "1500", "1000", "500"], default_value="Auto", readonly=True, enable_events=True),
+            sg.Text("Contrast:"), sg.Combo(key="-CONTRAST-", size=(6, 1), values=["+20","+15","+10","+5","0","-5","-10","-15","-20"], default_value="0", readonly=True, enable_events=True)],
             [sg.Image(key="-IMAGE0-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE1-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE2-", size=(100,100), enable_events=True),
@@ -69,7 +77,8 @@ class PigeonatorUI:
             sg.Image(key="-IMAGE5-", size=(100,100), enable_events=True)],
             [sg.Text("Classifier:"), sg.Combo(key="-CLASSIFIER-", size=(12, 1), values=model_names, default_value=DEFAULT_MODEL, readonly=True, enable_events=True),
             sg.Text("Last Classification:"), sg.Text(key="-CLASSIFICATION-", size=(18, 1)),
-            sg.Checkbox("Auto Detect", key="-AUTO-", size=(15,1), enable_events=True),
+            sg.Checkbox("Detect", key="-DETECT-", size=(5,1), enable_events=True),
+            sg.Checkbox("Deter", key="-DETER-", size=(5,1), enable_events=True),
             sg.Text(key="-TEMP-", size=(10, 1), justification="right")]
         ]
 
@@ -82,7 +91,6 @@ class PigeonatorUI:
 
         self.camera = picamera.PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT), framerate=15)
         self.camera.iso = 100
-        #self.camera.contrast = -10
         self.stream = io.BytesIO()
         self.scanner = CameraScanner(lambda: self.get_camera_image(), 0, CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.window = sg.Window("Pigeonator UI", layout)
@@ -98,14 +106,20 @@ class PigeonatorUI:
     def get_exposure(self):
         return self.values["-EXPOSURE-"]
 
+    def get_contrast(self):
+        return int(self.values["-CONTRAST-"])
+
     def get_classifier_name(self):
         return self.values["-CLASSIFIER-"]
 
     def get_model(self):
         return self.models[self.get_classifier_name()]
 
-    def get_auto_mode(self):
-        return self.values["-AUTO-"]
+    def get_detect_mode(self):
+        return self.values["-DETECT-"]
+
+    def get_deter_mode(self):
+        return self.values["-DETER-"]
 
     def classifier(self):
         return LobeClassifier.Classifier(f"http://192.168.0.82:38100/predict/{self.get_model()}")
@@ -133,10 +147,11 @@ class PigeonatorUI:
         labels = prediction["Labels"]
         for eachlabel in labels:
             if eachlabel[0] == label:
-                confidence = eachlabel[1]
+                confidence = round(eachlabel[1], 4)
                 self.set_classification(f"{label}({n}) @ {confidence}")
                 break
 
+        logging.info("Classified image: {camera} as {label} @ {confidence}", label=label, camera=n, confidence=confidence)
         print(f"Found {label}({n}) @ {confidence} - temp={self.cpu.temperature}C")
         return (label, confidence)
 
@@ -160,6 +175,10 @@ class PigeonatorUI:
             self.camera.shutter_speed = int(exposure)
         self.scanner.reset()
 
+    def set_camera_contrast(self, contrast):
+        self.camera.contrast = contrast
+        self.scanner.reset()
+
     def save_classified_image(self, image, n, label):
         label_dir = f"images/{label}"
         if (not os.path.isdir(label_dir)):
@@ -172,14 +191,16 @@ class PigeonatorUI:
         Check the CPU temperature and wait for cool down if necessary.
         """
         self.cpu = CPUTemperature()
-        self.temperature = round(self.cpu.temperature,1)
+        self.temperature = round(self.cpu.temperature, 1)
 
         while (self.cpu.temperature >= THROTTLE_TEMP):
-            print("Over-temperature throttling (%0.1fC)..." % self.cpu.temperature)
+            logging.warning("Over-temperature throttling ({temp}C)...", temp=self.temperature)
+            print(f"Over-temperature throttling ({self.temperature}C)...")
             self.set_temperature_display(f"{self.temperature}C", "red")
             time.sleep(THROTTLE_SLEEP)
             self.cpu = CPUTemperature()
             self.temperature = round(self.cpu.temperature, 1)
+        logging.debug("System temperature {temp}C", temp=self.temperature)
         self.set_temperature_display(f"{self.temperature}C", "white")
 
     def image_to_base64(self, image):
@@ -191,15 +212,17 @@ class PigeonatorUI:
         img_bytes = in_mem_file.read()
         return base64.b64encode(img_bytes).decode('ascii')
 
-    def fire_sprinkler(self, secs):
+    def fire_sprinkler(self, secs, label):
         try:
             secs = max(secs, 3)
+            logging.info(f"Deterring {label} with sprinkler for {secs} seconds", label=label)
             self.linktap.activate_instant_mode(LINKTAP_GATEWAY, LINKTAP_TAPLINKER, True, 0, secs, False)
-            print(f"Firing sprinkler for {secs} seconds")
+            print(f"Deterring {label} with sprinkler for {secs} seconds")
         except:
+            logging.error("Failed to execute linktap command")
             print("Failed to execute linktap command")
 
-    def imgbb_upload(self, image, description):
+    def imgbb_upload(self, image, label, description):
         payload = {
             "key": IMGBB_API_KEY,
             "image": self.image_to_base64(image),
@@ -213,8 +236,11 @@ class PigeonatorUI:
             url = data["url_viewer"]
             thumb_url = data["thumb"]["url"]
             image_url = data["url"]
+            logging.info("Saved IMGBB image {url} for {label}", url=image_url, label=label)
             return (url, thumb_url, image_url)
-        return None
+
+        logging.error("Unable to save IMGBB image for {label}", label=label)
+        return None, 
 
 
     def run(self):
@@ -228,22 +254,29 @@ class PigeonatorUI:
                 image = self.scanner.get_next_image()
                 if self.scanner.segment == 0:
                     self.set_frame_image(self.scanner.get_frame_image())
+                    self.check_cpu_temperature()
+
                 self.set_view_image(self.scanner.segment, image)
 
-                if self.get_auto_mode():
+                if self.get_detect_mode():
                     result = self.classify_image(image, self.scanner.segment)
                     if result==None:
                         break
                     label, confidence = result
                         
-                    if label == "Pigeon":
+                    if label == "Pigeon" and confidence >= CONFIDENCE_THRESHOLD:
                         self.save_classified_image(image, self.scanner.segment, label)
                         description = f"{label}-{self.scanner.long_filename_for(self.scanner.segment)}"
-                        self.imgbb_upload(image, description)
-                        self.fire_sprinkler(15)
+                        url, thumb, image_url = self.imgbb_upload(image, label, description)
+                        logging.info("Detected {label} @ {confidence} in zone {zone} and saved image: {im}", label=label, confidence=confidence, im=url, zone=self.scanner.segment)
+                        if self.get_deter_mode():
+                            self.fire_sprinkler(15, label)
 
             if event == "-EXPOSURE-":
                 self.set_camera_exposure(self.get_exposure())
+
+            if event == "-CONTRAST-":
+                self.set_camera_contrast(self.get_contrast())
 
             for i in range(0,6):
               if event == f"-IMAGE{i}-":
@@ -256,7 +289,6 @@ class PigeonatorUI:
 
                 # Save in an ALL batch
                 self.save_classified_image(segment_image, i, "Training")
-            self.check_cpu_temperature()
 
         self.window.close()
 
