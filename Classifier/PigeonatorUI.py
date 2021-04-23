@@ -7,6 +7,7 @@ import time
 import picamera
 import LobeClassifier
 import LinkTap
+import Secrets
 import requests
 import base64
 import json
@@ -17,7 +18,7 @@ import seqlog
 
 seqlog.log_to_seq(
    server_url="http://192.168.0.82:5341/",
-   api_key="Vfr3hCJoCmaR3ZZOS4kL",
+   api_key=Secrets.SEQ_API_KLEY,
    level=logging.DEBUG,
    batch_size=10,
    auto_flush_timeout=10,  # seconds
@@ -45,16 +46,6 @@ THROTTLE_SLEEP = 10
 
 DEFAULT_MODEL = "Pigeonator3"
 CONFIDENCE_THRESHOLD = 0.95
-
-LINKTAP_GATEWAY = "7A327022004B1200B69"
-LINKTAP_TAPLINKER = "8F2F7022004B1200"
-LINKTAP_USERNAME = "Bowerandy"
-LINKTAP_APIKEY = "ed5f1074c05715e3e65723db9e321cb9"
-
-IMGBB_UPLOAD = "https://api.imgbb.com/1/upload"
-IMGBB_API_KEY = "3b43324bcbc8164bd9be44ded3651664"
-
-# First the window layout in 2 columns
 
 class PigeonatorUI:
     def __init__(self):
@@ -94,7 +85,7 @@ class PigeonatorUI:
         self.stream = io.BytesIO()
         self.scanner = CameraScanner(lambda: self.get_camera_image(), CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.window = sg.Window("Pigeonator UI", layout)
-        self.linktap = LinkTap.LinkTap(LINKTAP_USERNAME, LINKTAP_APIKEY)
+        self.linktap = LinkTap.LinkTap(Secrets.LINKTAP_USERNAME, Secrets.LINKTAP_API_KEY)
 
     def get_camera_image(self):
         self.stream.seek(0)
@@ -216,7 +207,7 @@ class PigeonatorUI:
         try:
             secs = max(secs, 3)
             logging.info(f"Deterring {label} with sprinkler for {secs} seconds", label=label)
-            self.linktap.activate_instant_mode(LINKTAP_GATEWAY, LINKTAP_TAPLINKER, True, 0, secs, False)
+            self.linktap.activate_instant_mode(Secrets.LINKTAP_GATEWAY, Secrets.LINKTAP_TAPLINKER, True, 0, secs, False)
             print(f"Deterring {label} with sprinkler for {secs} seconds")
         except:
             logging.error("Failed to execute linktap command")
@@ -224,12 +215,12 @@ class PigeonatorUI:
 
     def imgbb_upload(self, image, label, description):
         payload = {
-            "key": IMGBB_API_KEY,
+            "key": Secrets.IMGBB_API_KEY,
             "image": self.image_to_base64(image),
             "name": description,
             "expiration": 3600*24
         }
-        reply = requests.post(IMGBB_UPLOAD, payload)
+        reply = requests.post(Secrets.IMGBB_UPLOAD, payload)
         if reply.reason=="OK":
             result = json.loads(reply.content)
             data = result["data"]
