@@ -34,7 +34,7 @@ class CameraScanner():
         return self.segment_crop(n)
 
     def reset(self):
-        segment = -1
+        self.segment = -1
 
     def segment_crop(self, n):
         image_width, image_height = self.frame_image.size
