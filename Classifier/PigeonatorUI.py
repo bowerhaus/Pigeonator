@@ -92,7 +92,7 @@ class PigeonatorUI:
         self.camera = picamera.PiCamera(resolution=(CAMERA_WIDTH, CAMERA_HEIGHT), framerate=15)
         self.camera.iso = 100
         self.stream = io.BytesIO()
-        self.scanner = CameraScanner(lambda: self.get_camera_image(), 0, CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
+        self.scanner = CameraScanner(lambda: self.get_camera_image(), CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.window = sg.Window("Pigeonator UI", layout)
         self.linktap = LinkTap.LinkTap(LINKTAP_USERNAME, LINKTAP_APIKEY)
 

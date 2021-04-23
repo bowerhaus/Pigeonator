@@ -6,13 +6,12 @@ from PIL import Image
 SEGMENT_OVERLAP = 1.2
 
 class CameraScanner():
-    def __init__(self, getfromcamera, frame_delay_ms, camera_width, camera_height, segment_cols, segment_rows, segment_size):
+    def __init__(self, getfromcamera, camera_width, camera_height, segment_cols, segment_rows, segment_size):
         self.getfromcamera = getfromcamera
         self.camera_width = camera_width
         self.camera_height = camera_height
         self.segment_rows = segment_rows
         self.segment_cols = segment_cols
-        self.frame_delay_ms = frame_delay_ms
         segment_ceilwidth = math.ceil(self.camera_width / self.segment_cols)
         segment_ceilheight = math.ceil(self.camera_height / self.segment_rows)
         self.segment_size = math.floor(min(segment_ceilheight, segment_ceilwidth) * SEGMENT_OVERLAP)

@@ -35,7 +35,7 @@ class Pigeonator():
         self.show_overlay=args.overlay
         self.display_result=args.display
         self.frame_delay=int(args.delay)
-        self.scanner = CameraScanner(lambda: self.get_camera_image(), self.frame_delay, CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
+        self.scanner = CameraScanner(lambda: self.get_camera_image(), CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
         self.image_count_limit = int(args.count)
         
         if (args.uselobe):
