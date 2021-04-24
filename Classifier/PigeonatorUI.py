@@ -1,5 +1,3 @@
-# img_viewer.py
-
 import PySimpleGUI as sg
 import os.path
 import io
@@ -47,6 +45,24 @@ THROTTLE_SLEEP = 10
 DEFAULT_MODEL = "Pigeonator3"
 CONFIDENCE_THRESHOLD = 0.95
 
+class CameraZone:
+    def __init__(self, n, scanner):
+        self.id = n
+        self.scanner = scanner
+        self.is_active = True
+
+    def get_image(self):
+        self.image = self.scanner.get_segment_image(self.id)
+        return self.image
+
+    def short_filename(self):
+        return f"im{self.id}.jpg"    
+
+    def long_filename(self):
+        now = datetime.now()
+        date_time = now.strftime("%Y%m%d%H%M%S")
+        return f"im{self.id}-{date_time}.jpg"
+
 class PigeonatorUI:
     def __init__(self):
         self.models = {
@@ -59,7 +75,9 @@ class PigeonatorUI:
         frame_image_column = [
             [sg.Image(key="-IMAGE-", size=(660,660), enable_events=True)],
             [sg.Text("Exposure:"), sg.Combo(key="-EXPOSURE-", size=(12, 1), values=["Auto", "12000", "8000", "4000", "2000", "1500", "1000", "500"], default_value="Auto", readonly=True, enable_events=True),
-            sg.Text("Contrast:"), sg.Combo(key="-CONTRAST-", size=(6, 1), values=["+20","+15","+10","+5","0","-5","-10","-15","-20"], default_value="0", readonly=True, enable_events=True)],
+            #sg.Text("Contrast:"), sg.Combo(key="-CONTRAST-", size=(6, 1), values=["+20","+15","+10","+5","0","-5","-10","-15","-20"], default_value="0", readonly=True, enable_events=True)],
+            
+            sg.Text("Contrast:"), sg.Slider(key="-CONTRAST-", orientation="h", range=(-20, 20), size=(12, 12), disable_number_display=True, default_value=0, resolution=5, tooltip=0, enable_events =True)],
             [sg.Image(key="-IMAGE0-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE1-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE2-", size=(100,100), enable_events=True),
@@ -84,8 +102,17 @@ class PigeonatorUI:
         self.camera.iso = 100
         self.stream = io.BytesIO()
         self.scanner = CameraScanner(lambda: self.get_camera_image(), CAMERA_WIDTH, CAMERA_HEIGHT, SEGMENT_COLS, SEGMENT_ROWS, SEGMENT_SIZE)
+ 
+        self.zones = []
+        for id in range(SEGMENT_COLS*SEGMENT_ROWS):
+            self.zones.append(CameraZone(id, self.scanner))
+        self.reset_current_zone()
+        
         self.window = sg.Window("Pigeonator UI", layout)
         self.linktap = LinkTap.LinkTap(Secrets.LINKTAP_USERNAME, Secrets.LINKTAP_API_KEY)
+
+    def reset_current_zone(self):
+        self.current_zone = -1
 
     def get_camera_image(self):
         self.stream.seek(0)
@@ -93,6 +120,12 @@ class PigeonatorUI:
         self.stream.seek(0)
         self.stream.truncate()   
         return image
+
+    def get_next_zone(self):
+        self.current_zone = (self.current_zone+1) % len(self.zones)
+        if (self.current_zone == 0):
+            self.scanner.get_next_frame()
+        return self.zones[self.current_zone]
 
     def get_exposure(self):
         return self.values["-EXPOSURE-"]
@@ -152,10 +185,10 @@ class PigeonatorUI:
         view.save(bio, format="PNG")
         self.window[f"-IMAGE-"].update(data=bio.getvalue())
 
-    def set_view_image(self, n, image):
-        view = image.resize((100,100))
+    def set_zone_image(self, n, image):
+        thumb = image.resize((100,100))
         bio = io.BytesIO()
-        view.save(bio, format="PNG")
+        thumb.save(bio, format="PNG")
         self.window[f"-IMAGE{n}-"].update(data=bio.getvalue())
 
     def set_camera_exposure(self, exposure):
@@ -164,17 +197,18 @@ class PigeonatorUI:
         else:
             self.camera.exposure_mode = 'off'
             self.camera.shutter_speed = int(exposure)
-        self.scanner.reset()
+        self.reset_current_zone()
 
     def set_camera_contrast(self, contrast):
         self.camera.contrast = contrast
-        self.scanner.reset()
+        self.window["-CONTRAST-"].SetTooltip(str(contrast))
+        self.reset_current_zone()
 
     def save_classified_image(self, image, n, label):
         label_dir = f"images/{label}"
         if (not os.path.isdir(label_dir)):
             os.makedirs(label_dir)
-        save_file = f"{label_dir}/{self.scanner.long_filename_for(n)}"
+        save_file = f"{label_dir}/{self.zones[n].long_filename()}"
         image.save(save_file)
 
     def check_cpu_temperature(self):
@@ -242,24 +276,28 @@ class PigeonatorUI:
                 break
 
             if event == "__TIMEOUT__":  
-                image = self.scanner.get_next_image()
-                if self.scanner.segment == 0:
-                    self.set_frame_image(self.scanner.get_frame_image())
+                current_zone = self.get_next_zone()
+                if current_zone.id == 0:
+                    frame_image = self.scanner.get_frame_image()
+                    self.set_frame_image(frame_image)
+                    frame_image.save("images/im.jpg")
                     self.check_cpu_temperature()
 
-                self.set_view_image(self.scanner.segment, image)
+                zone_image = current_zone.get_image()
+                zone_image.save(f"images/im{current_zone.id}.jpg")
+                self.set_zone_image(current_zone.id, zone_image)
 
                 if self.get_detect_mode():
-                    result = self.classify_image(image, self.scanner.segment)
+                    result = self.classify_image(zone_image, current_zone.id)
                     if result==None:
                         break
                     label, confidence = result
                         
                     if label == "Pigeon" and confidence >= CONFIDENCE_THRESHOLD:
-                        self.save_classified_image(image, self.scanner.segment, label)
-                        description = f"{label}-{self.scanner.long_filename_for(self.scanner.segment)}"
-                        url, thumb, image_url = self.imgbb_upload(image, label, description)
-                        logging.info("Detected {label} @ {confidence} in zone {zone} and saved image: {im}", label=label, confidence=confidence, im=url, zone=self.scanner.segment)
+                        self.save_classified_image(zone_image, current_zone.id, label)
+                        description = f"{label}-{current_zone.long_filename()}"
+                        url, _, _ = self.imgbb_upload(zone_image, label, description)
+                        logging.info("Detected {label} @ {confidence} in zone {zone} and saved image: {im}", label=label, confidence=confidence, im=url, zone=current_zone.id)
                         if self.get_deter_mode():
                             self.fire_sprinkler(15, label)
 
@@ -269,17 +307,17 @@ class PigeonatorUI:
             if event == "-CONTRAST-":
                 self.set_camera_contrast(self.get_contrast())
 
-            for i in range(0,6):
+            for i in range(6):
               if event == f"-IMAGE{i}-":
                 self.set_classification("Working...")
-                segment_image = self.scanner.get_segment_image(i)
-                result = self.classify_image(segment_image, i)
+                zone_image = self.zones[i].get_image()
+                result = self.classify_image(zone_image, i)
                 if result==None:
                     break
                 label, confidence = result
 
                 # Save in an ALL batch
-                self.save_classified_image(segment_image, i, "Training")
+                self.save_classified_image(zone_image, i, "Training")
 
         self.window.close()
 

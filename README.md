@@ -29,3 +29,27 @@ So the new plan is to create a pigeon scaring device that is sensitive only to t
 ## Pi Setup
 
 For use with the HQ camera, you need to bump the GPU memory in /boot/config.txt to 176Mb (https://www.raspberrypi.org/forums/viewtopic.php?t=278381)
+
+## ML Server Setup
+
+We're using a Debian 10 (Buster) VM running under Proxmox. Configured with 8Gb memory and 32Gb disk.
+
+* Install QEMU Guest Agent
+  ```bash 
+  apt-get install qemu-guest-agent
+  ```
+  Make sure that the agent is enabled in the Proxmox VM options.
+
+* Install VSCode
+  Goto  https://code.visualstudio.com/Download and download the appropriate .deb installer.
+  ```bash 
+  sudo apt install ./code_1.55.2-1618307277_amd64.deb
+  ```
+* Install Git & Keyring (for GitHub authentication) and fetch Pigeonator Repo
+  ```bash
+  sudo apt install git-all
+  sudo apt install gnome-keyring
+  git config --global user.name "Andy Bower"
+  git config --global user.email johndoe@example.com
+  git clone https://github.com/bowerhaus/Pigeonator.git
+  ```
