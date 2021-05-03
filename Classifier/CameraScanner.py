@@ -3,19 +3,17 @@ import time
 from datetime import datetime
 from PIL import Image
 
-SEGMENT_OVERLAP = 1.2
-
 class CameraScanner():
-    def __init__(self, getfromcamera, camera_width, camera_height, segment_cols, segment_rows, segment_size):
+    def __init__(self, getfromcamera, config):
         self.getfromcamera = getfromcamera
-        self.camera_width = camera_width
-        self.camera_height = camera_height
-        self.segment_rows = segment_rows
-        self.segment_cols = segment_cols
+        self.camera_width = config["camera"]["width"].get(int)
+        self.camera_height = config["camera"]["height"].get(int)
+        self.segment_rows = config["scanner"]["rows"].get(int)
+        self.segment_cols = config["scanner"]["cols"].get(int)
         segment_ceilwidth = math.ceil(self.camera_width / self.segment_cols)
         segment_ceilheight = math.ceil(self.camera_height / self.segment_rows)
-        self.segment_size = math.floor(min(segment_ceilheight, segment_ceilwidth) * SEGMENT_OVERLAP)
-        self.segment_size = segment_size
+        self.segment_size = math.floor(min(segment_ceilheight, segment_ceilwidth) * config["scanner"]["segment_overlap"].get())
+        self.segment_size = config["scanner"]["segment_size"].get()
         self.frame_image = None
 
     def get_frame_image(self):

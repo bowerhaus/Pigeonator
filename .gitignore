@@ -3,3 +3,4 @@
 .vscode/.ropeproject/objectdb
 Classifier/Secrets.py
 .vscode/settings.json
+Classifier/config.yaml

@@ -4,40 +4,11 @@ import json
 import io
 import base64
 import requests
+import logging
 
 class Classifier():
     def __init__(self, endpoint):
         self.endpoint = endpoint
-    
-    def process_image(self, image, input_shape):
-        """
-        Given a PIL Image, center square crop and resize to fit the expected model input, and convert from [0,255] to [0,1] values.
-        """
-        width, height = image.size
-        # ensure image type is compatible with model and convert if not
-        if image.mode != "RGB":
-            image = image.convert("RGB")
-            
-        # center crop image (you can substitute any other method to make a square image, such as just resizing or padding edges with 0)
-        if width != height:
-            square_size = min(width, height)
-            left = (width - square_size) / 2
-            top = (height - square_size) / 2
-            right = (width + square_size) / 2
-            bottom = (height + square_size) / 2
-            # Crop the center of the image
-            image = image.crop((left, top, right, bottom))
-            
-        # now the image is square, resize it to be the right shape for the model input
-        input_width, input_height = input_shape[1:3]
-
-        if image.width != input_width or image.height != input_height:
-            image = image.resize((input_width, input_height))
-
-        # make 0-1 float instead of 0-255 int (that PIL Image loads by default)
-        image = np.asarray(image) / 255.0
-        # format input as model expects
-        return image.reshape(input_shape).astype(np.float32)
 
     def get_prediction(self, image):
         """
@@ -65,6 +36,7 @@ class Classifier():
                 outputs = None
             return outputs
         except:
+            logging.error("Could not contact: {endpoint}", endpoint=self.endpoint)
             print(f"Could not contact: {self.endpoint}")
             return None
 
