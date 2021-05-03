@@ -6,7 +6,7 @@ import base64
 import requests
 import logging
 
-class Classifier():
+class LobeClassifier():
     def __init__(self, endpoint):
         self.endpoint = endpoint
 

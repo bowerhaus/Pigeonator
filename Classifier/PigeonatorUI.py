@@ -12,6 +12,7 @@ import logging
 import logging.config
 import time
 import seqlog
+import importlib
 
 from PIL import Image
 from datetime import datetime
@@ -107,7 +108,11 @@ class PigeonatorUI:
         self.window.refresh()
 
     def classifier(self):
-        return LobeClassifier.Classifier(Config["classifier"]["url"].get())
+        classifier_name = Config["classifier"]["name"].get()
+        classifier_url = Config["classifier"]["url"].get()
+        module = importlib.import_module(classifier_name)
+        clss = getattr(module, classifier_name)
+        return clss(classifier_url)
 
     def classify_image(self, image, n):
         zone = self.zones[n]
