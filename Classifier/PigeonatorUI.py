@@ -3,7 +3,7 @@ import os.path
 import io
 import time
 import picamera
-import LobeClassifier
+import RemoteClassifier
 import LinkTap
 import requests
 import base64
@@ -45,7 +45,7 @@ class PigeonatorUI:
             sg.Image(key="-IMAGE3-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE4-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE5-", size=(100,100), enable_events=True)],
-            [sg.Text("Classification:"), sg.Text(key="-CLASSIFICATION-", size=(18, 1)),
+            [sg.Text("Classification:"), sg.Text(key="-CLASSIFICATION-", size=(24, 1)),
             sg.Checkbox("Auto Detect", key="-DETECT-", size=(15,1), enable_events=True),
             sg.Checkbox("Deter", key="-DETER-", size=(5,1), enable_events=True),
             sg.Text(key="-TEMP-", size=(30, 1), justification="right")]]
@@ -136,11 +136,11 @@ class PigeonatorUI:
         for eachlabel in labels:
             if eachlabel[0] == label:
                 confidence = round(eachlabel[1], 4)
-                self.set_classification(f"{label}({n}) @ {confidence}")
+                self.set_classification(f"Zone {n} is {label} @ {confidence}")
                 break
 
-        logging.info("Classified image: {camera} as {label} @ {confidence}", label=label, camera=n, confidence=confidence)
-        print(f"Found {label}({n}) @ {confidence} - temp={self.cpu.temperature}C")
+        logging.info("Classified zone {camera} as {label} @ {confidence}", label=label, camera=n, confidence=confidence)
+        print(f"Classified zone {n} as {label} @ {confidence} - temp={self.cpu.temperature}C")
         return (label, confidence)
 
     def set_frame_image(self, image):

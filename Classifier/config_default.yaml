@@ -1,0 +1,53 @@
+appName: Pigeonator
+
+camera:
+  width: 3000
+  height: 2000
+
+scanner:
+  cols: 3
+  rows: 2
+  segment_size: 1000
+  segment_overlap: 1.2
+
+classifier:
+  name: RemoteClassifier
+
+  # url: http://192.168.0.169:38100/classify/tf/pigeonator3
+  url: http://192.168.0.169:38100/classify/torch/pigeonator2
+  # url: http://192.168.0.82:38100/predict/3290603c-b7d1-4532-8834-6713549008de # Pigeonator2
+  # url: http://192.168.0.82:38100/predict/d06b0699-87c3-4831-a62f-99644aebff3d # Pigeonator3
+  # url: http://192.168.0.82:38100/predict/b0ae8b35-7bd5-4fb4-ab65-b20b8c177a9d # Pigenoator4
+  # url: http://192.168.0.82:38100/predict/6e37bbaf-975a-4bb1-80c3-4f129da5773d # Pigeonator5-1
+  # url: http://192.168.0.82:38100/predict/ec465172-9496-4513-b5fe-1b3a5d6d72a7 # Pigeomator5-2
+
+model:
+  input_width: 300
+  input_height: 300
+  confidence_threshold: 0.95
+
+cpu:
+  throttle_temp: 70
+  throttle_sleep: 10
+  
+linktap:
+  gateway_id: xxxx
+  taplinker_id: xxxx
+  username: xxxx
+  api_key: xxxx
+
+imgbb:
+  active: no
+  upload_url: https://api.imgbb.com/1/upload
+  api_key: xxxx
+
+seq:
+  url: http://192.168.0.169:5341/
+  api_key: xxxx
+
+ifttt:
+  active: no
+  user: xxxx
+  webhook: https://maker.ifttt.com/use/xxxx
+  api_key: xxxx
+

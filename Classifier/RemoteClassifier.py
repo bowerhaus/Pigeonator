@@ -1,12 +1,10 @@
-#URL http://localhost:38100/predict/499c264a-b402-47c1-b648-6f7063aab5c7
-
 import json
 import io
 import base64
 import requests
 import logging
 
-class LobeClassifier():
+class RemoteClassifier():
     def __init__(self, endpoint):
         self.endpoint = endpoint
 

@@ -11,13 +11,6 @@
             "program": "${workspaceFolder}/Classifier/PigeonatorUI.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/Classifier"
-        },
-        {
-            "name": "Python: Current File",
-            "type": "python",
-            "request": "launch",
-            "program": "${file}",
-            "console": "integratedTerminal"
         }
     ]
 }
