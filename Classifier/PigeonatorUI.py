@@ -46,9 +46,9 @@ class PigeonatorUI:
             sg.Image(key="-IMAGE4-", size=(100,100), enable_events=True),
             sg.Image(key="-IMAGE5-", size=(100,100), enable_events=True)],
             [sg.Text("Classification:"), sg.Text(key="-CLASSIFICATION-", size=(24, 1)),
-            sg.Checkbox("Auto Detect", key="-DETECT-", size=(15,1), enable_events=True),
+            sg.Checkbox("Auto Detect", key="-DETECT-", size=(12,1), enable_events=True),
             sg.Checkbox("Deter", key="-DETER-", size=(5,1), enable_events=True),
-            sg.Text(key="-TEMP-", size=(30, 1), justification="right")]]
+            sg.Text(key="-TEMP-", size=(27, 1), justification="right")]]
 
         # ----- Full layout -----
         layout = [
@@ -175,6 +175,16 @@ class PigeonatorUI:
         save_file = f"{label_dir}/{self.zones[n].long_filename()}"
         image.save(save_file)
 
+    def save_full_image(self, image):
+        dir = f"images/Full"
+        if (not os.path.isdir(dir)):
+            os.makedirs(dir)
+
+        now = datetime.now()
+        date_time = now.strftime("%Y%m%d%H%M%S")
+        save_file = f"{dir}/frame-{date_time}.jpg"
+        image.save(save_file)
+
     def check_cpu_temperature(self):
         """
         Check the CPU temperature and wait for cool down if necessary.
@@ -297,6 +307,7 @@ class PigeonatorUI:
 
                 # Save in an ALL batch
                 self.save_classified_image(zone_image, i, "Training")
+                self.save_full_image(self.scanner.get_frame_image())
 
         self.window.close()
 
