@@ -59,6 +59,7 @@ class PigeonatorDetectorUI:
         self.window = sg.Window("Pigeonator Detector UI", layout)
         self.linktap = LinkTap.LinkTap(Config["linktap"]["username"].get(), Config["linktap"]["api_key"].get())
         self.font= ImageFont.truetype('/usr/share/fonts/truetype/piboto/Piboto-Regular.ttf', 80)
+    
 
     def get_camera_image(self):
         self.stream.seek(0)
@@ -95,13 +96,6 @@ class PigeonatorDetectorUI:
         self.window["-FRAMETIME-"].update(f"{time}ms")
         self.window.refresh()
 
-    def detector(self):
-        detector_name = Config["detector"]["name"].get()
-        detector_url = Config["detector"]["url"].get()
-        module = importlib.import_module(detector_name)
-        clss = getattr(module, detector_name)
-        return clss(detector_url)
-
     def set_display_image(self, image):
         view = image.resize((660, 660))
         bio = io.BytesIO()
@@ -120,6 +114,13 @@ class PigeonatorDetectorUI:
         self.camera.contrast = contrast
         self.window["-CONTRAST-"].SetTooltip(str(contrast))
         self.reset_current_zone()
+
+    def detector(self):
+        detector_name = Config["detector"]["name"].get()
+        detector_url = Config["detector"]["url"].get()
+        module = importlib.import_module(detector_name)
+        clss = getattr(module, detector_name)
+        return clss(detector_url)
 
     def check_cpu_temperature(self):
         """
@@ -160,7 +161,7 @@ class PigeonatorDetectorUI:
     def imgbb_upload(self, image, label, description):
         payload = {
             "key": Config["imgbb"]["api_key"].get(),
-            "image": self.image_to_base64(image),
+            "image": self.image_to_base64(image.resize((512,512))),
             "name": description,
             "expiration": 3600*24
         }
@@ -215,8 +216,27 @@ class PigeonatorDetectorUI:
         yscale = Config["camera"]["height"].get(int) / Config["model"]["input_height"].get(int)
         bestbox = bestitem["box"]
 
-        return (bestitem["label"], bestitem["score"], 
-            ((int(bestbox[0]*xscale), int(bestbox[1]*yscale)), (int(bestbox[2]*xscale), int(bestbox[3]*yscale))))
+        label = bestitem["label"]
+        confidence = round(bestitem["score"], 4)
+        box = ((int(bestbox[0]*xscale), int(bestbox[1]*yscale)), (int(bestbox[2]*xscale), int(bestbox[3]*yscale)))
+
+        lt, rb = box
+        x1, y1 = lt
+        x2, y2 = rb
+        x=(x1+x2)//2
+        y=(y1+y2)//2
+        w = x2-x1
+        h=y2-y1
+        area = w*h
+        location = (x, y)  
+        ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+        logging.info("RawDetect {label} @ {confidence} at {location} A={area}", label=label, confidence=confidence, location=location, area=area)
+        raw_detect_file = open("rawdetect.csv", "a")
+        raw_detect_file.write(f"{ts},{label},{confidence},{x1},{y1},{x2},{y2},{x},{y},{w},{h},{area}\n")
+        raw_detect_file.close()
+
+        return (label, confidence, box, location, area)
 
     def run(self):
         cycle_count = 0
@@ -228,14 +248,13 @@ class PigeonatorDetectorUI:
             if event == "Exit" or event == sg.WIN_CLOSED:
                 break
 
+            last_frame_time = this_frame_time
+            this_frame_time = int(time.time()*1000)
+            frame_time = this_frame_time - last_frame_time
+            self.set_frametime_display(frame_time)
+
             if event == "__TIMEOUT__":  
                 self.check_cpu_temperature()
-
-                last_frame_time = this_frame_time
-                this_frame_time = int(time.time()*1000)
-                frame_time = this_frame_time - last_frame_time
-                self.set_frametime_display(frame_time)
-
                 current_image = self.get_camera_image()
 
             cycle_count = cycle_count+1
@@ -248,18 +267,8 @@ class PigeonatorDetectorUI:
                 if result==None:
                     continue
 
-                label, confidence, box = result
-                confidence = round(confidence,4)
-
-                lt, rb = box
-                x1, y1 = lt
-                x2, y2 = rb
-                x=(x1+x2)//2
-                y=(y1+y2)//2
-                w = x2-x1
-                h=y2-y1
-                area = w*h
-                location = (x, y)               
+                label, confidence, box, location, area= result
+                confidence = round(confidence,4)          
 
                 if confidence >= self.confidence_threshold:
                     logging.info("Detected {label} @ {confidence} at {location} A={area}", label=label, confidence=confidence, location=location, area=area)
