@@ -1,4 +1,0 @@
-# Required ython packages
-numpy
-picamera
-Pillow
