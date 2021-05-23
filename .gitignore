@@ -6,3 +6,4 @@ Classifier/config.yaml
 Classifier/images
 Detector/config.yaml
 Detector/images
+Detector/rawdetect.csv
