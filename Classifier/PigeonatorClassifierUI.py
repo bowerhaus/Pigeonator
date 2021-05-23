@@ -32,7 +32,7 @@ seqlog.log_to_seq(
    json_encoder_class=json.encoder.JSONEncoder  # Optional; only specify this if you want to use a custom JSON encoder
 )
 
-class PigeonatorUI:
+class PigeonatorClassifierUI:
     def __init__(self):
 
         frame_image_column = [
@@ -68,7 +68,7 @@ class PigeonatorUI:
             self.zones[id].is_active = True
         self.reset_current_zone()
         
-        self.window = sg.Window("Pigeonator UI", layout)
+        self.window = sg.Window("Pigeonator Classifier UI", layout)
         self.linktap = LinkTap.LinkTap(Config["linktap"]["username"].get(), Config["linktap"]["api_key"].get())
 
     def reset_current_zone(self):
@@ -312,7 +312,7 @@ class PigeonatorUI:
         self.window.close()
 
 def main():
-    ui = PigeonatorUI()
+    ui = PigeonatorClassifierUI()
     ui.run()
     
 if __name__ == '__main__':

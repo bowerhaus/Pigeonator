@@ -8,9 +8,17 @@
             "name": "Classifier",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/Classifier/PigeonatorUI.py",
+            "program": "${workspaceFolder}/Classifier/PigeonatorClassifierUI.py",
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}/Classifier"
+        },
+        {
+            "name": "Detector",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/Detector/PigeonatorDetectorUI.py",
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}/Detector"
         }
     ]
 }

@@ -1,0 +1,41 @@
+appName: PigeonatorDetect
+
+camera:
+  width: 2000
+  height: 2000
+  warm_up_cycles: 4
+
+detector:
+  name: RemoteDetector
+  url: http://192.168.0.169:38100/detect/detecto/M600-1
+
+model:
+  input_width: 600
+  input_height: 600
+  confidence_threshold: 0.7
+
+cpu:
+  throttle_temp: 70
+  throttle_sleep: 10
+  
+linktap:
+  gateway_id: XXXX
+  taplinker_id: XXXX
+  username: XXXX
+  api_key: XXXX
+
+imgbb:
+  active: yes
+  upload_url: https://api.imgbb.com/1/upload
+  api_key: XXXX
+
+seq:
+  url: http://192.168.0.169:5341/
+  api_key: XXXX
+
+ifttt:
+  active: no
+  user: bower62
+  webhook: https://maker.ifttt.com/use/bqmk8CK_3_RhTwB2v-z9t-
+  api_key: XXXX
+
