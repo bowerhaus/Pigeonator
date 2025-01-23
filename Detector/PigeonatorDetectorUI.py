@@ -39,7 +39,7 @@ class PigeonatorDetectorUI:
             sg.Text("Contrast:"), sg.Slider(key="-CONTRAST-", orientation="h", range=(-20, 20), size=(12, 12), disable_number_display=True, default_value=0, resolution=5, tooltip=0, enable_events =True)],
             [sg.Text("Detection:"), sg.Text(key="-DETECTION-", size=(24, 1)),
             sg.Checkbox("Auto Detect", key="-DETECT-", size=(12,1), enable_events=True, default=True),
-            sg.Checkbox("Deter", key="-DETER-", size=(5,1), enable_events=True),
+            sg.Checkbox("Deter", key="-DETER-", size=(5,1), enable_events=True, default=True),
             sg.Text(key="-FRAMETIME-", size=(15, 1), justification="right"),
             sg.Text(key="-ELAPSED-", size=(10, 1), justification="right"),
             sg.Text(key="-TEMP-", size=(5, 1), justification="right")]]
@@ -101,6 +101,7 @@ class PigeonatorDetectorUI:
         bio = io.BytesIO()
         view.save(bio, format="PNG")
         self.window[f"-IMAGE-"].update(data=bio.getvalue())
+        self.window.refresh()
 
     def set_camera_exposure(self, exposure):
         if exposure == "Auto":
@@ -108,12 +109,12 @@ class PigeonatorDetectorUI:
         else:
             self.camera.exposure_mode = 'off'
             self.camera.shutter_speed = int(exposure)
-        self.reset_current_zone()
+
 
     def set_camera_contrast(self, contrast):
         self.camera.contrast = contrast
         self.window["-CONTRAST-"].SetTooltip(str(contrast))
-        self.reset_current_zone()
+
 
     def detector(self):
         detector_name = Config["detector"]["name"].get()
@@ -152,16 +153,18 @@ class PigeonatorDetectorUI:
         try:
             secs = max(secs, 3)
             logging.info(f"Deterring {label} with sprinkler for {secs} seconds", label=label)
-            self.linktap.activate_instant_mode(Config["linktap"]["gateway_id"].get(), Config["linktap"]["taplinker_id"].get(), True, 0, secs, False)
             print(f"Deterring {label} with sprinkler for {secs} seconds")
-        except:
-            logging.error("Failed to execute linktap command")
-            print("Failed to execute linktap command")
+            self.linktap.activate_instant_mode(Config["linktap"]["gateway_id"].get(), Config["linktap"]["taplinker_id"].get(), True, 0, secs, False)
+            time.sleep(secs)
+        
+        except LinkTap.LinkTapError as error:
+            logging.error(f"Failed to execute linktap command: {error.message}")
+            print(f"Failed to execute linktap command: {error.message}")
 
     def imgbb_upload(self, image, label, description):
         payload = {
             "key": Config["imgbb"]["api_key"].get(),
-            "image": self.image_to_base64(image.resize((512,512))),
+            "image": self.image_to_base64(image.resize((600,600))),
             "name": description,
             "expiration": 3600*24
         }
@@ -203,15 +206,20 @@ class PigeonatorDetectorUI:
             self.set_detection("ERROR")
             return None
 
-        items = prediction["Items"]
-        if len(items) == 0:
-            self.set_detection("None")
-            return None
-
         elapsedMs = prediction["Elapsed"]
         self.set_elapsed_display(elapsedMs)
 
-        bestitem = items[0]
+        bestitem = None
+        items = prediction["Items"]
+        for item in items:
+            if item["label"] == "Pigeon":
+                bestitem = item
+                break
+
+        if bestitem == None:
+            self.set_detection("None")
+            return None
+
         xscale = Config["camera"]["width"].get(int) / Config["model"]["input_width"].get(int)
         yscale = Config["camera"]["height"].get(int) / Config["model"]["input_height"].get(int)
         bestbox = bestitem["box"]
@@ -264,33 +272,34 @@ class PigeonatorDetectorUI:
 
             if event == "-IMAGE-" or self.get_detect_mode():
                 result = self.detect_image(current_image)
-                if result==None:
-                    continue
+                if result != None:
+                    label, confidence, box, location, area= result
+                    confidence = round(confidence,4)        
 
-                label, confidence, box, location, area= result
-                confidence = round(confidence,4)          
+                    if confidence >= self.confidence_threshold:
+                        logging.info("Detected {label} @ {confidence} at {location} A={area}", label=label, confidence=confidence, location=location, area=area)
+                        self.set_detection(f"{label} @ {confidence}")
+                        self.save_image(current_image, f"images/{label}/actual")
 
-                if confidence >= self.confidence_threshold:
-                    logging.info("Detected {label} @ {confidence} at {location} A={area}", label=label, confidence=confidence, location=location, area=area)
-                    self.set_detection(f"{label} @ {confidence}")
-                    self.save_image(current_image, f"images/{label}/actual")
+                        draw = ImageDraw.Draw(current_image)
+                        draw.rectangle(box, outline="red", width=3)
+                        draw.text((50,50), f"{label} @ {confidence} at {location}, A={area}", fill="red", font=self.font)
+                        self.save_image(current_image, f"images/{label}/annotated")
+                        self.set_display_image(current_image)
 
-                    draw = ImageDraw.Draw(current_image)
-                    draw.rectangle(box, outline="red", width=3)
-                    draw.text((50,50), f"{label} @ {confidence} at {location}, A={area}", fill="red", font=self.font)
-                    self.save_image(current_image, f"images/{label}/annotated")
+                        if self.get_deter_mode():
+                            self.fire_sprinkler(25, label)
 
-                    if self.get_deter_mode():
-                        self.fire_sprinkler(15, label)
-
-                    description = f"{label} @ {confidence}"
-                    url, _, _ = self.imgbb_upload(current_image, label, description)
-                else:
-                    self.set_detection(f"None @ {round(1-confidence,4)}")
-                    
-                    draw = ImageDraw.Draw(current_image)
-                    draw.rectangle(box, outline="blue", width=3)
-                    draw.text((50,50), f"{label} @ {confidence} at {location}, A={area}", fill="blue", font=self.font)
+                        description = f"{label} @ {confidence}"
+                        url, _, _ = self.imgbb_upload(current_image, label, description)
+                    else:
+                        self.set_detection(f"None @ {round(1-confidence,4)}")
+                        
+                        draw = ImageDraw.Draw(current_image)
+                        draw.rectangle(box, outline="blue", width=3)
+                        draw.text((50,50), f"{label} @ {confidence} at {location}, A={area}", fill="blue", font=self.font)
+            else:
+                time.sleep(3)
 
             self.set_display_image(current_image)
                     

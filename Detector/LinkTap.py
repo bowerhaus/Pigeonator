@@ -16,13 +16,13 @@ class LinkTap:
         if r.status_code == requests.codes.ok:
             data = r.json()
             if data["result"] == "error":
-                raise LinkTapError("API returned error")
+                raise LinkTapError("API returned error (code={r.status_code})")
             elif data is None:
-                raise LinkTapError("Failed to return data")
+                raise LinkTapError("Failed to return data (code={r.status_code})")
             else:
                 return data
         else:
-            raise LinkTapError("Failed to connect to API")
+            raise LinkTapError(f"Failed to connect to API (code={r.status_code})")
 
     def activate_instant_mode(self, gatewayId, taplinkerId, action, duration, durationSec, eco):
         url = self.base_url + "activateInstantMode"
