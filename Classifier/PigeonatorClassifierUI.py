@@ -32,6 +32,7 @@ seqlog.log_to_seq(
    json_encoder_class=json.encoder.JSONEncoder  # Optional; only specify this if you want to use a custom JSON encoder
 )
 
+
 class PigeonatorClassifierUI:
     def __init__(self):
 
